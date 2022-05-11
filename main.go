@@ -1,67 +1,30 @@
 package main
 
 import (
-	"context"
-	"flag"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func main() {
-	portFlag := flag.Int("p", 8080, "port number used into the http server")
-	flag.Parse()
-	ctx, cancel := context.WithCancel(context.Background())
-
+	// register hello function to handle all requests
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", handle)
+	mux.HandleFunc("/", hello)
 
-	httpServer := &http.Server{
-		Addr:        fmt.Sprintf(":%d", *portFlag),
-		Handler:     mux,
-		BaseContext: func(_ net.Listener) context.Context { return ctx },
+	// use PORT environment variable, or default to 8080
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	httpServer.RegisterOnShutdown(cancel)
-
-	go func() {
-		log.Printf("starting server on :%d\n", *portFlag)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("error on listen and serve: %v\n", err)
-		}
-	}()
-
-	// capture os interrupt
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh,
-		os.Interrupt,
-		syscall.SIGTERM,
-	)
-
-	// waiting for the os interrupt
-	<-signalCh
-
-	log.Println("received interrupt signal - shutting down")
-
-	gracefullCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelShutdown()
-
-	if err := httpServer.Shutdown(gracefullCtx); err != nil {
-		log.Printf("shutdown error: %v\n", err)
-		defer os.Exit(1)
-		return
-	}
-
-	log.Printf("service stopped\n")
-	defer os.Exit(0)
+	// start the web server on port and accept requests
+	log.Printf("Server listening on port %s", port)
+	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
 
-func handle(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Hello! You found me ;)"))
+// hello responds to the request with a plain-text "Hello, world" message.
+func hello(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Serving request: %s", r.URL.Path)
+	fmt.Fprintf(w, "Hello, world!\n")
 }
