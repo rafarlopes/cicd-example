@@ -1,0 +1,40 @@
+name: Run Go End to End Tests
+description: Run Go End to End Tests
+
+inputs:
+  endpoint:
+    description: The endpoint which the tests should run
+    required: true
+    type: string
+  test-repo:
+    description: The e2e tests repository
+    required: true
+    type: string
+  github-token:
+    description: The github token to allow pushes to the deployment-repo
+    required: true
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+    -
+      name: Checkout Tests Repo
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ github.repository_owner }}/${{ inputs.test-repo }}
+        token: ${{ inputs.github-token }}
+        path: ${{ inputs.test-repo }}
+    -
+      name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17
+
+    -
+      name: Run tests
+      shell: bash
+      env:
+        APPLICATION_URL: ${{ inputs.endpoint }}
+      run: go test ./... -count 1 -v
+      working-directory: ./${{ inputs.test-repo }}
