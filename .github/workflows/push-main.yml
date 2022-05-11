@@ -165,3 +165,63 @@ jobs:
           endpoint: ${{ secrets.STAGE_ENDPOINT }}
           github-token: ${{ secrets.GH_TOKEN }}
 
+  pull-request-prod:
+    runs-on: ubuntu-latest
+    needs: [push, e2e-tests-stage]
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v3
+      -
+        name: Create release branch for production
+        uses: ./.github/actions/deploy-application
+        with:
+          application: cicd-example
+          deployment-repo: example-deployment
+          environment: production
+          branch: "releases/production-${{ github.run_id }}"
+          image-tag: ${{ needs.push.outputs.image-tag }}
+          github-token: ${{ secrets.GH_TOKEN }}
+      -
+        name: Get latest release
+        id: latest-release
+        uses: rafarlopes/get-latest-pre-release-tag-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        with:
+          repository: cicd-example
+      -
+        name: Delete existing pre-release and associated tag
+        if: ${{ steps.latest-release.outputs.tag != '' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          gh release delete ${{ steps.latest-release.outputs.tag }} --yes
+          git push --delete origin ${{ steps.latest-release.outputs.tag }}
+          echo "deleted tag and release: ${{ steps.latest-release.outputs.tag }}"
+      -
+        name: Create new pre-release
+        id: new-release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          TAG=$(date +'%Y%m%d%H%M%S')
+          gh release create $TAG --prerelease --generate-notes
+          echo "::set-output name=tag::$TAG"
+      -
+        name: Create pull request for production
+        shell: bash
+        working-directory: example-deployment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          BODY=$(gh release view ${{ steps.new-release.outputs.tag }} --repo "${{ github.repository }}" --json body --jq '.body')
+          gh pr create \
+            --title "cicd-example: deploy to production version ${{ needs.push.outputs.image-tag }}" \
+            --body "$BODY" \
+            --label "app=cicd-example" \
+            --base "production" \
+            --assignee "${{ github.actor }}" \
+            --reviewer "${{ github.actor }}"
