@@ -1,0 +1,58 @@
+name: Deploy Docker Application
+description: Deploy docker image image by updating the deployment manifest on deployment repo
+
+inputs:
+  application:
+    description: The repository where the code is. Should match with the folder on deployment-repo and the container name
+    required: true
+  deployment-repo:
+    description: The repository where the manifests are
+    required: true
+  environment:
+    required: true
+    type: string
+  image-tag:
+    description: The image tag we should use in the manifest
+    required: true
+    type: string
+  branch:
+    description: The branch to push the manifest changes
+    required: true
+    type: string
+  github-token:
+    description: The github token to allow pushes to the deployment-repo
+    required: true
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+    -
+      name: Checkout deployment repo
+      uses: actions/checkout@v3
+      with:
+        repository: ${{ github.repository_owner }}/${{ inputs.deployment-repo }}
+        path: ${{ inputs.deployment-repo }}
+        ref: ${{ inputs.environment }}
+        token: ${{ inputs.github-token }}
+    -
+      name: Update deployment manifest with newer image
+      uses: ./.github/actions/update-manifest-image
+      id: manifest
+      with:
+          application: ${{ inputs.application }}
+          deployment-repo: ${{ inputs.deployment-repo }}
+          environment: ${{ inputs.environment}}
+          image-tag: ${{ inputs.image-tag }}
+          branch: ${{ inputs.branch }}
+    -
+      name: Wait for deployment to ${{ inputs.environment }}
+      # TODO: point to a tag
+      uses: rafarlopes/wait-for-commit-status-action@main
+      env:
+        GITHUB_REPOSITORY: ${{ github.repository_owner }}/${{ inputs.deployment-repo }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      with:
+        sha: ${{ steps.manifest.outputs.deployment-commit-sha }}
+        context: "cd/${{ inputs.application }}/${{ inputs.environment }}"
+

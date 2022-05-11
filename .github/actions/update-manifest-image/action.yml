@@ -1,0 +1,51 @@
+name: Update deployment manifest
+description: Update deployment manifest with new image version from sha input
+
+inputs:
+  application:
+    description: The repository where the code is. Should match with the folder on deployment-repo and the container name
+    required: true
+  deployment-repo:
+    description: The repository where the manifests are
+    required: true
+  environment:
+    required: true
+    type: string
+  image-tag:
+    description: The image tag we should use in the manifest
+    required: true
+    type: string
+  branch:
+    description: The branch to push the manifest changes
+    required: true
+    type: string
+
+outputs:
+  deployment-commit-sha:
+    description: Full commit sha from the updated manifest commit
+    value: ${{ steps.commit.outputs.deployment_commit_sha }}
+
+runs:
+  using: "composite"
+  steps:
+    -
+      name: Update manifest
+      working-directory: ./${{ inputs.deployment-repo }}
+      shell: bash
+      run: |
+        MANIFEST="${{ inputs.application }}/deployment.yml"
+        IMAGE="${{ github.repository_owner }}/${{ inputs.application }}:${{ inputs.image-tag }}"
+        yq -i "(.spec.template.spec.containers.[] | select(.name == \"${{ inputs.application }}\" )).image |= \"$IMAGE\"" $MANIFEST
+    -
+      name: Commit and push changes
+      uses: EndBug/add-and-commit@v8
+      with:
+        new_branch: ${{ inputs.branch }}
+        cwd: ./${{ inputs.deployment-repo }}
+        message: "${{ inputs.application }}: deploy to ${{ inputs.environment }} version ${{ inputs.image-tag }}"
+    -
+      name: Prepare commit sha
+      shell: bash
+      working-directory: ./${{ inputs.deployment-repo }}
+      id: commit
+      run: echo "::set-output name=deployment_commit_sha::$(git rev-parse HEAD)"
