@@ -55,7 +55,7 @@ jobs:
       -
         name: Run unit tests
         run: |
-          docker run --rm ${{ github.run_id }} go test ./... -race
+          docker run --rm ${{ github.run_id }} go test ./... -race -count 1 -v
         shell:
           bash
 
