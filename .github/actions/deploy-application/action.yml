@@ -47,8 +47,7 @@ runs:
           branch: ${{ inputs.branch }}
     -
       name: Wait for deployment to ${{ inputs.environment }}
-      # TODO: point to a tag
-      uses: rafarlopes/wait-for-commit-status-action@main
+      uses: rafarlopes/wait-for-commit-status-action@v1
       env:
         GITHUB_REPOSITORY: ${{ github.repository_owner }}/${{ inputs.deployment-repo }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
