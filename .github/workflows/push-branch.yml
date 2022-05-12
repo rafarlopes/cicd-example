@@ -3,9 +3,17 @@ on:
   push:
     branches-ignore:
       - main
+    paths-ignore:
+      - 'README.md'
+      - LICENSE
+      - '*.pdf'
   pull_request:
     branches-ignore:
       - main
+    paths-ignore:
+      - 'README.md'
+      - LICENSE
+      - '*.pdf'
 
   workflow_dispatch:
 
